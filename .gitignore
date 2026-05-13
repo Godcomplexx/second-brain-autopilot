@@ -1,0 +1,16 @@
+.claude/
+.agents/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.log
+
+# Personal config — contains vault path with username
+interview_trainer/config/obsidian.json
+interview_trainer/config/models.json
+
+# Personal data — contains note names and processing history
+interview_trainer/data/processed_notes.json
+interview_trainer/data/task_index.json

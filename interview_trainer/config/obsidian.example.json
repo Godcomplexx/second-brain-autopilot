@@ -1,0 +1,11 @@
+{
+  "vault_path": "C:/Users/YOUR_USERNAME/path/to/your/obsidian/vault",
+  "daily_folder": "02 Daily",
+  "knowledge_folder": "05 Knowledge",
+  "tracking_folder": "06 Tracking",
+  "projects_folder": "03 Projects",
+  "areas_folder": "04 Areas",
+  "archive_folder": "07 Archive",
+  "system_folder": "00 System",
+  "tasks_file": "06 Tracking/Task Inbox.md"
+}

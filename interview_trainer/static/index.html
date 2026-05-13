@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Notes Aggregator</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Left sidebar ────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1 class="app-title">Notes Aggregator</h1>
+      <div class="status-row" id="status-row">
+        <span class="dot" id="dot-ollama" title="Ollama"></span>
+        <span class="dot" id="dot-vault" title="Vault"></span>
+        <span class="status-text" id="status-text">Checking…</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <button class="btn btn-primary full-width" id="btn-scan">Scan Daily Notes</button>
+    </div>
+
+    <div class="sidebar-section" id="note-list-section" hidden>
+      <div class="section-label">
+        Daily notes
+        <span class="badge" id="note-count">0</span>
+      </div>
+      <div class="note-list" id="note-list"></div>
+      <div class="note-processed-info" id="note-processed-info" hidden></div>
+      <button class="btn btn-secondary full-width" id="btn-aggregate" disabled>
+        Restructure Note
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost full-width" id="btn-index">View Index</button>
+    </div>
+  </aside>
+
+  <!-- ── Workspace ────────────────────────────────────────────── -->
+  <main class="workspace">
+
+    <div class="empty-state" id="empty-state">
+      <p>Scan daily notes to get started.</p>
+    </div>
+
+    <div class="result-panel" id="result-panel" hidden>
+      <div class="result-header">
+        <h2 class="result-title">Restructured Notes</h2>
+        <div class="result-meta" id="result-meta"></div>
+      </div>
+      <div id="segments-area"></div>
+      <div class="write-bar card">
+        <div class="write-actions" id="write-actions">
+          <button class="btn btn-secondary" id="btn-preview" disabled>Preview Write Plan</button>
+          <button class="btn btn-primary" id="btn-write" disabled>Approve &amp; Write All</button>
+        </div>
+        <div class="write-preview" id="write-preview" hidden></div>
+        <div class="write-done" id="write-done" hidden>
+          <span class="write-done-icon">✓</span>
+          <div class="write-done-body">
+            <div class="write-done-title">Written to vault</div>
+            <div class="write-done-paths" id="write-done-paths"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="index-panel" id="index-panel" hidden>
+      <h2>Processed Notes Index</h2>
+      <div id="index-content"></div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+    <div class="loading-overlay" id="loading" hidden>
+      <div class="spinner"></div>
+      <span id="loading-text">Working…</span>
+    </div>
+
+  </main>
+
+  <!-- ── Right tracker sidebar ────────────────────────────────── -->
+  <aside class="tracker-sidebar">
+
+    <!-- Habits -->
+    <div class="ts-block">
+      <div class="ts-header">
+        <span class="ts-title">Habits</span>
+        <span class="ts-date" id="ts-date"></span>
+      </div>
+      <div id="ts-habits">
+        <div class="ts-loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="ts-block ts-block-tasks">
+      <div class="ts-header">
+        <span class="ts-title">Tasks</span>
+        <span class="ts-badge" id="ts-task-count"></span>
+      </div>
+      <div id="ts-tasks">
+        <div class="ts-loading">Loading…</div>
+      </div>
+    </div>
+
+  </aside>
+
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
