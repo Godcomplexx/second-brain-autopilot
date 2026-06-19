@@ -260,6 +260,7 @@ class Handler(BaseHTTPRequestHandler):
         segments = body.get("segments", [])
         tasks = body.get("tasks", [])
         habits = body.get("habits", {})
+        scan_hash = body.get("scan_hash", "")
         if not source_rel or not segments:
             self._send_error("source_rel and segments are required")
             return
@@ -272,6 +273,7 @@ class Handler(BaseHTTPRequestHandler):
                     seg.get("filename", "Note.md"),
                     seg.get("content", ""),
                     seg.get("connections") or [],
+                    scan_hash=scan_hash,
                 )
                 results.append(r)
                 if not r["success"]:
@@ -323,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._read_body()
         key = body.get("key", "")
         value = body.get("value")  # 0 or 1 from frontend, None = auto-toggle
-        _valid = ("english", "3d", "learning", "reading", "walking", "training")
+        _valid = tuple(config.get_app().get("habit_keys", ["english", "3d", "learning", "reading", "walking", "training"]))
         if key not in _valid:
             self._send_error(f"invalid habit key: {key}")
             return
@@ -351,8 +353,10 @@ class Handler(BaseHTTPRequestHandler):
         daily_folder = obs.get("daily_folder", "02 Daily")
         daily_path = vault / daily_folder
 
+        habit_keys = config.get_app().get("habit_keys", ["english", "3d", "learning", "reading", "walking", "training"])
+        keys_pattern = "|".join(re.escape(k) for k in habit_keys)
         field_re = re.compile(
-            r"^(english|3d|learning|reading|walking|training)::\s*(\d+(?:\.\d+)?)",
+            rf"^({keys_pattern})::\s*(\d+(?:\.\d+)?)",
             re.MULTILINE,
         )
 
@@ -364,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError:
                     continue
                 text = f.read_text(encoding="utf-8", errors="ignore")
-                rec: dict = {"date": f.stem, "english": 0, "3d": 0, "learning": 0, "reading": 0, "walking": 0, "training": 0}
+                rec: dict = {"date": f.stem, **{k: 0 for k in habit_keys}}
                 for m in field_re.finditer(text):
                     rec[m.group(1)] = float(m.group(2))
                 records.append(rec)

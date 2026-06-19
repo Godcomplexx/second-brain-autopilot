@@ -26,7 +26,7 @@ def scan_daily_notes(limit: int = 30) -> list[dict[str, Any]]:
     processed = index_store.get_processed()
     results: list[dict[str, Any]] = []
 
-    for path in sorted(daily_dir.glob("*.md")):
+    for path in sorted(p for ext in extensions for p in daily_dir.glob(f"*{ext}")):
 
         rel = str(path.relative_to(vault)).replace("\\", "/")
         content_hash = _hash_file(path)
@@ -65,16 +65,3 @@ def list_knowledge_files() -> list[str]:
                 if not f.name.startswith("."):
                     files.append(f.name)
     return files
-
-
-def verify_hash(rel_path: str) -> tuple[bool, str]:
-    obs = config.get_obsidian()
-    vault = Path(obs["vault_path"])
-    path = vault / rel_path
-    if not path.exists():
-        return False, ""
-    current_hash = _hash_file(path)
-    record = index_store.get_note_record(rel_path)
-    if not record:
-        return True, current_hash
-    return record.get("hash") == current_hash, current_hash

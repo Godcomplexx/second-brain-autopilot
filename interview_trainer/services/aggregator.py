@@ -112,7 +112,39 @@ def _extract_json(text: str) -> Any:
 _MAX_SEGMENT_CONTENT = 1500  # chars — matches the prompt instruction to the LLM
 
 
-_HABIT_KEYS = ("english", "3d", "learning", "reading", "walking", "training")
+def _habit_keys() -> tuple[str, ...]:
+    return tuple(config.get_app().get("habit_keys", ["english", "3d", "learning", "reading", "walking", "training"]))
+
+_CHECKBOX_RE = re.compile(r"^- \[ \] (.+)", re.MULTILINE)
+_NUMBERED_RE = re.compile(r"^\d+[.)]\s+(.+)", re.MULTILINE)
+_BOLD_RE = re.compile(r"\*{1,2}(.+?)\*{1,2}")
+
+
+def _clean(text: str) -> str:
+    return _BOLD_RE.sub(r"\1", text).strip()
+
+
+def _extract_checkbox_tasks(note_bodies: list[str]) -> list[dict[str, Any]]:
+    tasks = []
+    for body in note_bodies:
+        for m in _CHECKBOX_RE.finditer(body):
+            text = _clean(m.group(1))
+            if text:
+                tasks.append({"text": text, "due": "", "priority": ""})
+        for m in _NUMBERED_RE.finditer(body):
+            text = _clean(m.group(1))
+            if text and len(text) <= 120:
+                tasks.append({"text": text, "due": "", "priority": ""})
+    return tasks
+
+
+def _merge_tasks(llm_tasks: list[dict], checkbox_tasks: list[dict]) -> list[dict]:
+    seen = {t["text"].strip().lower() for t in llm_tasks}
+    merged = list(llm_tasks)
+    for t in checkbox_tasks:
+        if t["text"].strip().lower() not in seen:
+            merged.append(t)
+    return merged
 
 
 def _normalize_result(raw_result: dict[str, Any]) -> dict[str, Any]:
@@ -123,7 +155,7 @@ def _normalize_result(raw_result: dict[str, Any]) -> dict[str, Any]:
             seg["content"] = content[:_MAX_SEGMENT_CONTENT] + "\n\n— see source note for full text —"
 
     raw_habits = raw_result.get("habits", {})
-    habits = {k: min(1, max(0, int(float(raw_habits.get(k, 0) or 0)))) for k in _HABIT_KEYS}
+    habits = {k: min(1, max(0, int(float(raw_habits.get(k, 0) or 0)))) for k in _habit_keys()}
 
     return {
         "segments": segments,
@@ -145,8 +177,10 @@ def aggregate(
     note_max = app.get("max_note_chars", 8000)
 
     notes_text_parts: list[str] = []
+    note_bodies: list[str] = []
     for rel in rel_paths:
         parsed = note_parser.load_note(rel)
+        note_bodies.append(parsed["body"])
         chunk = f"## Note: {rel}\n\n{_trim(parsed['body'], note_max)}"
         notes_text_parts.append(chunk)
 
@@ -179,10 +213,12 @@ def aggregate(
             base_url=route["base_url"], timeout=route["timeout"],
         )
 
+    checkbox_tasks = _extract_checkbox_tasks(note_bodies)
     try:
         result = _normalize_result(_extract_json(raw))
+        result["tasks"] = _merge_tasks(result["tasks"], checkbox_tasks)
     except Exception:
-        result = {"segments": [], "tasks": [], "raw_response": raw, "parse_error": True}
+        result = {"segments": [], "tasks": checkbox_tasks, "raw_response": raw, "parse_error": True}
 
     return {
         "sources": rel_paths,

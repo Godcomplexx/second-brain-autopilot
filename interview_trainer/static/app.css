@@ -339,6 +339,39 @@ button, input, select, textarea { font: inherit; }
   flex-shrink: 0;
 }
 
+.note-search {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.note-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.selected-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  text-align: center;
+  padding: 2px 0;
+}
+
+.note-item.selected .note-status {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ts-task-due {
+  font-size: 10px;
+  color: var(--warn);
+  margin-left: 3px;
+}
+
 .note-processed-info {
   font-size: 11px;
   color: var(--ok);
@@ -555,6 +588,26 @@ button, input, select, textarea { font: inherit; }
   max-height: 300px;
   overflow-y: auto;
   color: var(--ink);
+}
+
+.seg-content {
+  margin-top: 8px;
+  width: 100%;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  white-space: pre-wrap;
+  resize: vertical;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.seg-content:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(15,118,110,0.15);
 }
 
 .tasks-summary {

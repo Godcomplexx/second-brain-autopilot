@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import config, vault_scanner, index_store
+from . import config, index_store
 
 _MARKER_START = "<!-- AI_AGGREGATED_START"
 _MARKER_END = "<!-- AI_AGGREGATED_END -->"
@@ -30,11 +31,12 @@ def _build_block(content: str, source: str, date: str, connections: list[str] | 
     return f"{_build_marker_start(source, date)}\n{body}\n{_MARKER_END}"
 
 
-def _resolve_target_path(obs: dict[str, Any], folder_key: str, filename: str) -> Path:
+def _resolve_target_path(obs: dict[str, Any], folder_key: str, filename: str, mkdir: bool = False) -> Path:
     vault = Path(obs["vault_path"])
     folder = obs.get(folder_key, folder_key)
     target = vault / folder / filename
-    target.parent.mkdir(parents=True, exist_ok=True)
+    if mkdir:
+        target.parent.mkdir(parents=True, exist_ok=True)
     return target
 
 
@@ -44,16 +46,30 @@ def write_aggregation(
     target_filename: str,
     content: str,
     connections: list[str] | None = None,
+    scan_hash: str = "",
 ) -> dict[str, Any]:
-    ok, current_hash = vault_scanner.verify_hash(source_rel)
+    obs = config.get_obsidian()
+    source_path = Path(obs["vault_path"]) / source_rel
+    if not source_path.exists():
+        return {"success": False, "error": f"Source file not found: {source_rel}"}
+
+    current_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+
+    if scan_hash:
+        # Compare against the hash captured at scan time
+        ok = current_hash == scan_hash
+    else:
+        # Fallback: compare against last-written hash in the index
+        record = index_store.get_note_record(source_rel)
+        ok = (not record) or record.get("hash") == current_hash
+
     if not ok:
         return {
             "success": False,
             "error": f"Source file '{source_rel}' has changed since scan. Re-scan and re-aggregate before writing.",
         }
 
-    obs = config.get_obsidian()
-    target_path = _resolve_target_path(obs, target_folder_key, target_filename)
+    target_path = _resolve_target_path(obs, target_folder_key, target_filename, mkdir=True)
     date_str = datetime.utcnow().strftime("%Y-%m-%d")
     block = _build_block(content, source_rel, date_str, connections)
 
@@ -88,7 +104,7 @@ def preview_write(
     connections: list[str] | None = None,
 ) -> dict[str, Any]:
     obs = config.get_obsidian()
-    target_path = _resolve_target_path(obs, target_folder_key, target_filename)
+    target_path = _resolve_target_path(obs, target_folder_key, target_filename, mkdir=False)
     date_str = datetime.utcnow().strftime("%Y-%m-%d")
     block = _build_block(content, source_rel, date_str, connections)
     target_rel = str(target_path.relative_to(Path(obs["vault_path"]))).replace("\\", "/")

@@ -3,11 +3,12 @@
 // ── State ─────────────────────────────────────────────────────────────────
 
 let _notes = [];           // [{rel_path, name, size, hash, status, targets}]
-let _selected = null;      // rel_path string of the selected note, or null
+let _selected = new Set(); // Set of rel_path strings
 let _lastResult = null;    // last aggregation result
 let _segments = [];        // editable segments [{topic, folder_key, filename, content}]
 let _previewDone = false;
 let _lastHealthKey = null; // last serialized health state for change detection
+let _aggregateTimer = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 
@@ -20,6 +21,8 @@ const btnScan      = $("btn-scan");
 const noteListSec  = $("note-list-section");
 const noteList     = $("note-list");
 const noteCount    = $("note-count");
+const noteSearch   = $("note-search");
+const selectedCount = $("selected-count");
 const btnAggregate = $("btn-aggregate");
 const emptyState   = $("empty-state");
 const resultPanel  = $("result-panel");
@@ -101,6 +104,23 @@ function serializeSegments() {
   }));
 }
 
+// ── Aggregate timer ───────────────────────────────────────────────────────
+
+function startAggregateTimer() {
+  let elapsed = 0;
+  _aggregateTimer = setInterval(() => {
+    elapsed += 1;
+    loadingText.textContent = `Restructuring with LLM… ${elapsed}s`;
+  }, 1000);
+}
+
+function stopAggregateTimer() {
+  if (_aggregateTimer) {
+    clearInterval(_aggregateTimer);
+    _aggregateTimer = null;
+  }
+}
+
 // ── Health check ──────────────────────────────────────────────────────────
 
 async function checkHealth() {
@@ -111,12 +131,20 @@ async function checkHealth() {
     _lastHealthKey = key;
     dotOllama.className = "dot " + (h.ollama ? "dot-ok" : "dot-err");
     dotVault.className  = "dot " + (h.vault_exists && h.daily_exists ? "dot-ok" : "dot-err");
+
     const parts = [];
-    if (h.ollama) parts.push(`Ollama (${h.ollama_models.length} models)`);
-    else parts.push("Ollama offline");
-    if (h.vault_exists && h.daily_exists) parts.push("Vault OK");
-    else if (h.vault_exists) parts.push("Daily folder missing");
-    else parts.push("Vault missing");
+    if (h.ollama) {
+      parts.push(`Ollama (${h.ollama_models.length} models)`);
+    } else {
+      parts.push("Ollama offline — run: ollama serve");
+    }
+    if (h.vault_exists && h.daily_exists) {
+      parts.push("Vault OK");
+    } else if (h.vault_exists) {
+      parts.push("Daily folder missing — check config");
+    } else {
+      parts.push("Vault not found — set vault_path in Settings");
+    }
     statusText.textContent = parts.join(" · ");
   } catch {
     if (_lastHealthKey === "error") return;
@@ -134,7 +162,7 @@ async function doScan() {
   try {
     const data = await api("POST", "/api/scan");
     _notes = data.notes || [];
-    _selected = null;
+    _selected = new Set();
     renderNoteList();
     noteCount.textContent = _notes.length;
     noteListSec.hidden = false;
@@ -151,11 +179,19 @@ async function doScan() {
 
 // ── Note list ─────────────────────────────────────────────────────────────
 
+function getFilteredNotes() {
+  const q = (noteSearch?.value || "").trim().toLowerCase();
+  if (!q) return _notes;
+  return _notes.filter(n => n.name.toLowerCase().includes(q));
+}
+
 function renderNoteList() {
   noteList.innerHTML = "";
-  _notes.forEach(note => {
+  const visible = getFilteredNotes();
+  visible.forEach(note => {
     const item = document.createElement("div");
-    item.className = "note-item" + (_selected === note.rel_path ? " selected" : "");
+    const isSel = _selected.has(note.rel_path);
+    item.className = "note-item" + (isSel ? " selected" : "");
     item.dataset.rel = note.rel_path;
     const statusClass = { new: "s-new", changed: "s-changed", processed: "s-done" }[note.status] || "";
     item.innerHTML = `
@@ -170,46 +206,66 @@ function renderNoteList() {
 }
 
 function toggleSelect(relPath) {
-  const prev = _selected;
-  _selected = _selected === relPath ? null : relPath;
-  if (prev) noteList.querySelector(`[data-rel="${CSS.escape(prev)}"]`)?.classList.remove("selected");
-  if (_selected) noteList.querySelector(`[data-rel="${CSS.escape(_selected)}"]`)?.classList.add("selected");
+  if (_selected.has(relPath)) {
+    _selected.delete(relPath);
+  } else {
+    _selected.add(relPath);
+  }
+  // update visual state for this item only
+  const el = noteList.querySelector(`[data-rel="${CSS.escape(relPath)}"]`);
+  if (el) el.classList.toggle("selected", _selected.has(relPath));
   updateAggregateBtn();
 }
 
 function updateAggregateBtn() {
-  btnAggregate.disabled = _selected === null;
+  btnAggregate.disabled = _selected.size === 0;
 
-  const note = _notes.find(n => n.rel_path === _selected);
+  // Multi-select count badge
+  if (_selected.size > 1) {
+    selectedCount.textContent = `${_selected.size} notes selected`;
+    selectedCount.hidden = false;
+  } else {
+    selectedCount.hidden = true;
+  }
+
   const infoEl = $("note-processed-info");
 
-  if (note && note.status === "processed") {
-    const date = note.processed_at ? note.processed_at.slice(0, 10) : "earlier";
-    const targets = (note.targets || []).map(t => t.split("/").pop()).join(", ");
-    infoEl.innerHTML = `✓ Already processed on ${date}${targets ? `<br><span class="note-info-targets">${targets}</span>` : ""}`;
-    infoEl.hidden = false;
-    btnAggregate.textContent = "Re-process Note";
-  } else {
-    infoEl.hidden = true;
-    btnAggregate.textContent = "Restructure Note";
+  if (_selected.size === 1) {
+    const [rel] = _selected;
+    const note = _notes.find(n => n.rel_path === rel);
+    if (note && note.status === "processed") {
+      const date = note.processed_at ? note.processed_at.slice(0, 10) : "earlier";
+      const targets = (note.targets || []).map(t => t.split("/").pop()).join(", ");
+      infoEl.innerHTML = `✓ Already processed on ${date}${targets ? `<br><span class="note-info-targets">${targets}</span>` : ""}`;
+      infoEl.hidden = false;
+      btnAggregate.textContent = "Re-process Note";
+      return;
+    }
   }
+
+  infoEl.hidden = true;
+  btnAggregate.textContent = _selected.size > 1
+    ? `Restructure ${_selected.size} Notes`
+    : "Restructure Note";
 }
 
 // ── Aggregate ─────────────────────────────────────────────────────────────
 
 async function doAggregate() {
-  if (_selected === null) return;
-  showLoading("Restructuring with LLM…");
+  if (_selected.size === 0) return;
+  showLoading("Restructuring with LLM… 0s");
+  startAggregateTimer();
   _previewDone = false;
   _segments = [];
   try {
-    const data = await api("POST", "/api/aggregate", { rel_paths: [_selected] });
+    const data = await api("POST", "/api/aggregate", { rel_paths: [..._selected] });
     _lastResult = data;
     renderResult(data);
     setPanel("result");
   } catch (err) {
     showToast(err.message, true);
   } finally {
+    stopAggregateTimer();
     hideLoading();
   }
 }
@@ -254,7 +310,7 @@ function renderResult(data) {
       }</ul></div>`
     : "";
 
-  // Segment cards
+  // Segment cards with editable textarea for content
   const segCards = segments.map((seg, i) => {
     const conns = (seg.connections || []);
     const connHtml = conns.length
@@ -275,9 +331,9 @@ function renderResult(data) {
         </label>
       </div>
       ${connHtml}
-      <details class="seg-preview">
-        <summary>Preview content</summary>
-        <pre>${escHtml(seg.content)}</pre>
+      <details class="seg-preview" open>
+        <summary>Edit content</summary>
+        <textarea class="seg-content" data-idx="${i}" rows="8">${escHtml(seg.content)}</textarea>
       </details>
     </div>`;
   }).join("");
@@ -294,6 +350,12 @@ function renderResult(data) {
   document.querySelectorAll(".seg-filename").forEach(el => {
     el.addEventListener("input", () => {
       _segments[+el.dataset.idx].filename = el.value.trim();
+      resetPreview();
+    });
+  });
+  document.querySelectorAll(".seg-content").forEach(el => {
+    el.addEventListener("input", () => {
+      _segments[+el.dataset.idx].content = el.value;
       resetPreview();
     });
   });
@@ -404,8 +466,10 @@ async function doWrite() {
   showLoading("Writing to vault…");
 
   try {
+    const scanNote = _notes.find(n => n.rel_path === source);
     const res = await api("POST", "/api/write", {
       source_rel: source,
+      scan_hash: scanNote?.hash || "",
       segments: serializeSegments(),
       tasks,
       habits,
@@ -416,7 +480,6 @@ async function doWrite() {
     const taskCount = res.tasks_written?.written || 0;
     const habitsUpdated = res.habits_written ? " · habits updated" : "";
 
-    // show persistent done banner
     $("write-preview").hidden = true;
     $("write-actions").hidden = true;
     const donePaths = $("write-done-paths");
@@ -537,8 +600,24 @@ function renderHabitsSidebar(data) {
   });
 }
 
+// Sort order: high → medium → low → no priority, then by due date
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2, "": 3, undefined: 3 };
+
+function sortTasks(tasks) {
+  return [...tasks].sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority] ?? 3;
+    const pb = PRIORITY_ORDER[b.priority] ?? 3;
+    if (pa !== pb) return pa - pb;
+    // tasks with a due date come before those without
+    if (a.due && !b.due) return -1;
+    if (!a.due && b.due) return 1;
+    if (a.due && b.due) return a.due.localeCompare(b.due);
+    return 0;
+  });
+}
+
 function renderTasksSidebar(tasks) {
-  const open = tasks.filter(t => !t.done);
+  const open = sortTasks(tasks.filter(t => !t.done));
   const el = $("ts-tasks");
   const badge = $("ts-task-count");
   badge.textContent = open.length || "";
@@ -549,11 +628,15 @@ function renderTasksSidebar(tasks) {
     return;
   }
 
-  el.innerHTML = open.map(t => `
+  el.innerHTML = open.map(t => {
+    const pri = { high: "🔴", medium: "🟡", low: "🟢" }[t.priority] || "";
+    const due = t.due ? `<span class="ts-task-due">📅 ${escHtml(t.due)}</span>` : "";
+    return `
     <div class="ts-task-row" data-text="${escHtml(t.text)}" data-source="${escHtml(t.source || "")}">
       <button class="ts-task-check" title="Mark done"></button>
-      <span class="ts-task-text">${escHtml(t.text)}</span>
-    </div>`).join("");
+      <span class="ts-task-text">${pri ? pri + " " : ""}${escHtml(t.text)}${due ? " " + due : ""}</span>
+    </div>`;
+  }).join("");
 
   el.querySelectorAll(".ts-task-check").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -566,7 +649,7 @@ function renderTasksSidebar(tasks) {
   });
 }
 
-// ── Task tracker ─────────────────────────────────────────────────────────
+// ── Task tracker (main panel) ─────────────────────────────────────────────
 
 function renderTasks(tasks) {
   const el = $("tracker-tasks");
@@ -575,7 +658,7 @@ function renderTasks(tasks) {
     return;
   }
 
-  const open = tasks.filter(t => !t.done);
+  const open = sortTasks(tasks.filter(t => !t.done));
   const done = tasks.filter(t => t.done);
 
   const taskHtml = (t, isDone) => {
@@ -619,7 +702,6 @@ async function toggleTask(itemEl) {
     const btn = itemEl.querySelector(".task-check");
     btn.classList.toggle("task-check-done", isDone);
     btn.textContent = isDone ? "✓" : "";
-    // Move item to correct group by re-fetching
     const indexData = await api("GET", "/api/index");
     renderTasks(indexData.tasks || []);
   } catch (err) {
@@ -634,6 +716,7 @@ btnAggregate.addEventListener("click", doAggregate);
 $("btn-preview").addEventListener("click", doPreview);
 $("btn-write").addEventListener("click", doWrite);
 $("btn-index").addEventListener("click", doViewIndex);
+noteSearch?.addEventListener("input", renderNoteList);
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 

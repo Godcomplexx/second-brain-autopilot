@@ -4,5 +4,6 @@
   "max_note_chars": 8000,
   "aggregator_prompt_max_chars": 24000,
   "preview_truncate_chars": 600,
-  "hash_algorithm": "sha256"
+  "hash_algorithm": "sha256",
+  "habit_keys": ["english", "3d", "learning", "reading", "walking", "training"]
 }
