@@ -1,4 +1,4 @@
-"""Tests for aggregator.py — JSON parsing, repair, normalisation."""
+"""Tests for aggregator.py — JSON parsing, repair, normalisation, validation."""
 from __future__ import annotations
 
 import pytest
@@ -9,6 +9,8 @@ from services.aggregator import (
     _normalize_result,
     _extract_checkbox_tasks,
     _merge_tasks,
+    _validate_segment,
+    _sanitize_filename,
 )
 
 
@@ -135,3 +137,91 @@ class TestMergeTasks:
         checkbox = [{"text": "Do X", "due": "", "priority": ""}]
         merged = _merge_tasks(llm, checkbox)
         assert len(merged) == 1
+
+
+# ── _sanitize_filename ────────────────────────────────────────────────────────
+
+class TestSanitizeFilename:
+    def test_adds_md_extension(self):
+        assert _sanitize_filename("MyNote").endswith(".md")
+
+    def test_preserves_valid_name(self):
+        assert _sanitize_filename("My Note.md") == "My Note.md"
+
+    def test_strips_dangerous_chars(self):
+        name = _sanitize_filename("../etc/passwd.md")
+        assert "/" not in name
+        assert ".." not in name
+
+    def test_empty_becomes_note(self):
+        assert _sanitize_filename("") == "Note.md"
+
+    def test_only_bad_chars_becomes_note(self):
+        assert _sanitize_filename("///") == "Note.md"
+
+
+# ── _validate_segment ─────────────────────────────────────────────────────────
+
+class TestValidateSegment:
+    def _valid(self, **overrides):
+        base = {
+            "topic": "Python",
+            "folder_key": "knowledge_folder",
+            "filename": "Python.md",
+            "content": "body",
+            "connections": [],
+        }
+        base.update(overrides)
+        return base
+
+    def test_valid_segment_passes(self):
+        seg = _validate_segment(self._valid(), 0)
+        assert seg["topic"] == "Python"
+        assert seg["folder_key"] == "knowledge_folder"
+
+    def test_unknown_folder_key_falls_back(self):
+        seg = _validate_segment(self._valid(folder_key="bad_folder"), 0)
+        assert seg["folder_key"] == "knowledge_folder"
+
+    def test_non_dict_raises(self):
+        with pytest.raises(ValueError):
+            _validate_segment("not a dict", 0)
+
+    def test_content_truncated_at_max(self):
+        long_content = "x" * 2000
+        seg = _validate_segment(self._valid(content=long_content), 0)
+        assert len(seg["content"]) <= 1600
+
+    def test_connections_cleaned(self):
+        seg = _validate_segment(self._valid(connections=["  Note A  ", "", None, "Note B"]), 0)
+        assert seg["connections"] == ["Note A", "Note B"]
+
+    def test_connections_non_list_becomes_empty(self):
+        seg = _validate_segment(self._valid(connections="not a list"), 0)
+        assert seg["connections"] == []
+
+
+# ── _normalize_result — segment limit ─────────────────────────────────────────
+
+class TestNormalizeResultSegmentLimit:
+    def test_caps_at_max_segments(self):
+        segs = [
+            {"topic": f"T{i}", "folder_key": "knowledge_folder",
+             "filename": f"T{i}.md", "content": "x"}
+            for i in range(25)
+        ]
+        result = _normalize_result({"segments": segs, "tasks": []})
+        assert len(result["segments"]) <= 20
+
+    def test_invalid_tasks_filtered_out(self):
+        raw = {
+            "segments": [],
+            "tasks": [
+                {"text": "valid task", "due": "", "priority": ""},
+                {"text": "", "due": "", "priority": ""},   # empty text
+                "not a dict",                               # wrong type
+            ],
+        }
+        result = _normalize_result(raw)
+        assert len(result["tasks"]) == 1
+        assert result["tasks"][0]["text"] == "valid task"
