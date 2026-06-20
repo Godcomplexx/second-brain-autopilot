@@ -3,11 +3,11 @@
 // ── State ─────────────────────────────────────────────────────────────────
 
 let _notes = [];           // [{rel_path, name, size, hash, status, targets}]
-let _selected = new Set(); // Set of rel_path strings
-let _lastResult = null;    // last aggregation result
+let _selected = null;      // rel_path string of the selected note (single-note contract)
+let _lastResult = null;    // last aggregation result from a single source
 let _segments = [];        // editable segments [{topic, folder_key, filename, content}]
 let _previewDone = false;
-let _lastHealthKey = null; // last serialized health state for change detection
+let _lastHealthKey = null;
 let _aggregateTimer = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -22,7 +22,6 @@ const noteListSec  = $("note-list-section");
 const noteList     = $("note-list");
 const noteCount    = $("note-count");
 const noteSearch   = $("note-search");
-const selectedCount = $("selected-count");
 const btnAggregate = $("btn-aggregate");
 const emptyState   = $("empty-state");
 const resultPanel  = $("result-panel");
@@ -162,7 +161,7 @@ async function doScan() {
   try {
     const data = await api("POST", "/api/scan");
     _notes = data.notes || [];
-    _selected = new Set();
+    _selected = null;
     renderNoteList();
     noteCount.textContent = _notes.length;
     noteListSec.hidden = false;
@@ -190,8 +189,7 @@ function renderNoteList() {
   const visible = getFilteredNotes();
   visible.forEach(note => {
     const item = document.createElement("div");
-    const isSel = _selected.has(note.rel_path);
-    item.className = "note-item" + (isSel ? " selected" : "");
+    item.className = "note-item" + (_selected === note.rel_path ? " selected" : "");
     item.dataset.rel = note.rel_path;
     const statusClass = { new: "s-new", changed: "s-changed", processed: "s-done" }[note.status] || "";
     item.innerHTML = `
@@ -206,59 +204,42 @@ function renderNoteList() {
 }
 
 function toggleSelect(relPath) {
-  if (_selected.has(relPath)) {
-    _selected.delete(relPath);
-  } else {
-    _selected.add(relPath);
-  }
-  // update visual state for this item only
-  const el = noteList.querySelector(`[data-rel="${CSS.escape(relPath)}"]`);
-  if (el) el.classList.toggle("selected", _selected.has(relPath));
+  const prev = _selected;
+  _selected = _selected === relPath ? null : relPath;
+  if (prev) noteList.querySelector(`[data-rel="${CSS.escape(prev)}"]`)?.classList.remove("selected");
+  if (_selected) noteList.querySelector(`[data-rel="${CSS.escape(_selected)}"]`)?.classList.add("selected");
   updateAggregateBtn();
 }
 
 function updateAggregateBtn() {
-  btnAggregate.disabled = _selected.size === 0;
-
-  // Multi-select count badge
-  if (_selected.size > 1) {
-    selectedCount.textContent = `${_selected.size} notes selected`;
-    selectedCount.hidden = false;
-  } else {
-    selectedCount.hidden = true;
-  }
+  btnAggregate.disabled = _selected === null;
 
   const infoEl = $("note-processed-info");
+  const note = _notes.find(n => n.rel_path === _selected);
 
-  if (_selected.size === 1) {
-    const [rel] = _selected;
-    const note = _notes.find(n => n.rel_path === rel);
-    if (note && note.status === "processed") {
-      const date = note.processed_at ? note.processed_at.slice(0, 10) : "earlier";
-      const targets = (note.targets || []).map(t => t.split("/").pop()).join(", ");
-      infoEl.innerHTML = `✓ Already processed on ${date}${targets ? `<br><span class="note-info-targets">${targets}</span>` : ""}`;
-      infoEl.hidden = false;
-      btnAggregate.textContent = "Re-process Note";
-      return;
-    }
+  if (note && note.status === "processed") {
+    const date = note.processed_at ? note.processed_at.slice(0, 10) : "earlier";
+    const targets = (note.targets || []).map(t => t.split("/").pop()).join(", ");
+    infoEl.innerHTML = `✓ Already processed on ${date}${targets ? `<br><span class="note-info-targets">${targets}</span>` : ""}`;
+    infoEl.hidden = false;
+    btnAggregate.textContent = "Re-process Note";
+    return;
   }
 
   infoEl.hidden = true;
-  btnAggregate.textContent = _selected.size > 1
-    ? `Restructure ${_selected.size} Notes`
-    : "Restructure Note";
+  btnAggregate.textContent = "Restructure Note";
 }
 
 // ── Aggregate ─────────────────────────────────────────────────────────────
 
 async function doAggregate() {
-  if (_selected.size === 0) return;
+  if (_selected === null) return;
   showLoading("Restructuring with LLM… 0s");
   startAggregateTimer();
   _previewDone = false;
   _segments = [];
   try {
-    const data = await api("POST", "/api/aggregate", { rel_paths: [..._selected] });
+    const data = await api("POST", "/api/aggregate", { rel_paths: [_selected] });
     _lastResult = data;
     renderResult(data);
     setPanel("result");
@@ -302,12 +283,14 @@ function renderResult(data) {
   const habits = r.habits || {};
   const habitKeys = Object.keys(habits).filter(k => habits[k] > 0);
   const habitsSummary = habitKeys.length
-    ? `<div class="tasks-summary"><strong>📊 Habits detected</strong><ul>${
-        habitKeys.map(k => {
-          const h = HABITS.find(h => h.key === k);
-          return `<li style="color:${h?.color || "inherit"}">${h?.label || k}: ${habits[k]}</li>`;
-        }).join("")
-      }</ul></div>`
+    ? `<div class="tasks-summary"><strong>📊 Habits detected</strong>
+        <span class="habits-source-note">will be written back to source note</span>
+        <ul>${
+          habitKeys.map(k => {
+            const h = HABITS.find(h => h.key === k);
+            return `<li style="color:${h?.color || "inherit"}">${h?.label || k}: ${habits[k]}</li>`;
+          }).join("")
+        }</ul></div>`
     : "";
 
   // Segment cards with editable textarea for content

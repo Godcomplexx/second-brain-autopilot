@@ -353,12 +353,12 @@ button, input, select, textarea { font: inherit; }
   border-color: var(--accent);
 }
 
-.selected-count {
+.habits-source-note {
+  display: inline-block;
+  margin-left: 6px;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-dark);
-  text-align: center;
-  padding: 2px 0;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .note-item.selected .note-status {
