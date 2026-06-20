@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config, index_store
+from . import config, index_store, storage
 
 
 PRIORITY_EMOJI = {"high": "🔴", "medium": "🟡", "low": "🟢"}
@@ -77,14 +77,14 @@ def write_tasks_to_vault(tasks: list[dict[str, Any]], source_rel: str) -> dict[s
 
     existing = tasks_file.read_text(encoding="utf-8") if tasks_file.exists() else ""
     if header in existing:
-        existing = re.sub(
+        new_content = re.sub(
             r"\n" + re.escape(header) + r"\n.*?(?=\n##|\Z)",
             block,
             existing,
             flags=re.DOTALL,
         )
-        tasks_file.write_text(existing, encoding="utf-8")
     else:
-        tasks_file.write_text(existing + block, encoding="utf-8")
+        new_content = existing + block
+    storage.atomic_write(tasks_file, new_content)
 
     return {"written": len(lines), "tasks_file": str(tasks_file.relative_to(vault)).replace("\\", "/")}

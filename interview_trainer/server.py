@@ -15,6 +15,7 @@ from services import (
     index_store,
     markdown_writer,
     ollama_client,
+    storage,
     task_manager,
     vault_scanner,
 )
@@ -265,6 +266,11 @@ class Handler(BaseHTTPRequestHandler):
         # ── Input validation (fail before any writes) ─────────────────────
         if not source_rel:
             self._send_error("source_rel is required")
+            return
+        try:
+            storage.safe_resolve(source_rel)
+        except storage.PathTraversalError as exc:
+            self._send_error(str(exc), 400)
             return
         if not segments:
             self._send_error("segments is required and must be non-empty")

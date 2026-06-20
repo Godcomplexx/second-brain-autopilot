@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config, index_store
+from . import config, index_store, storage
 
 _MARKER_START = "<!-- AI_AGGREGATED_START"
 _MARKER_END = "<!-- AI_AGGREGATED_END -->"
@@ -83,7 +83,7 @@ def write_aggregation(
     else:
         updated = block + "\n"
 
-    target_path.write_text(updated, encoding="utf-8")
+    storage.atomic_write(target_path, updated)
     target_rel = str(target_path.relative_to(Path(obs["vault_path"]))).replace("\\", "/")
 
     # Caller (server handler) is responsible for updating the index once all
