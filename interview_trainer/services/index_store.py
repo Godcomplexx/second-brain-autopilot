@@ -21,8 +21,6 @@ def _write(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# --- processed_notes: {rel_path: {hash, processed_at, targets}} ---
-
 def get_processed() -> dict[str, Any]:
     return _read(_PROCESSED_FILE, {})
 
@@ -48,8 +46,6 @@ def update_note_hash(rel_path: str, new_hash: str) -> None:
         data[rel_path]["hash"] = new_hash
         _write(_PROCESSED_FILE, data)
 
-
-# --- task_index: [{text, source, due, priority, done}] ---
 
 def get_tasks() -> list[dict[str, Any]]:
     return _read(_TASK_INDEX_FILE, [])

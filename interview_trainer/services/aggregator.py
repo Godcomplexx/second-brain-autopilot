@@ -72,14 +72,14 @@ def _extract_json(text: str) -> Any:
     # 2. Try direct parse
     try:
         return json.loads(raw)
-    except Exception:
-        pass
+    except json.JSONDecodeError:
+        pass  # expected: LLM output is not always valid JSON on first try
 
     # 3. Try repairing truncated JSON
     try:
         return json.loads(_repair_json(raw))
-    except Exception:
-        pass
+    except json.JSONDecodeError:
+        pass  # expected: repair may not recover all truncation patterns
 
     # 4. Salvage segments array even if outer object is broken
     seg_match = re.search(r'"segments"\s*:\s*(\[.*)', raw, re.DOTALL)
@@ -88,8 +88,8 @@ def _extract_json(text: str) -> Any:
             seg_text = _repair_json(seg_match.group(1))
             segments = json.loads(seg_text)
             return {"segments": segments, "tasks": []}
-        except Exception:
-            pass
+        except json.JSONDecodeError:
+            pass  # expected: segments array may itself be truncated
 
     # 5. Extract individual segment objects that look complete (have all 4 required keys)
     seg_objects = re.findall(
@@ -101,8 +101,8 @@ def _extract_json(text: str) -> Any:
         for obj in seg_objects:
             try:
                 segments.append(json.loads(_repair_json(obj)))
-            except Exception:
-                pass
+            except json.JSONDecodeError:
+                pass  # expected: individual objects may be malformed
         if segments:
             return {"segments": segments, "tasks": []}
 
@@ -111,8 +111,8 @@ def _extract_json(text: str) -> Any:
     if obj_match:
         try:
             return json.loads(_repair_json(obj_match.group(0)))
-        except Exception:
-            pass
+        except json.JSONDecodeError:
+            pass  # expected: last-resort match may not be valid JSON
 
     raise ValueError("No JSON found in LLM response")
 

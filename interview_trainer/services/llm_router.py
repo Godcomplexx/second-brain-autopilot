@@ -43,10 +43,13 @@ def resolve(
                 "base_url": "https://api.openai.com/v1",
                 "timeout": _FALLBACK_TIMEOUT,
             }
-        timeout = cfg.get("routes", {}).get(mode, fallback).get("timeout", _FALLBACK_TIMEOUT)
+        routes = cfg.get("routes") or {}
+        mode_cfg = routes.get(mode) or fallback
+        timeout = mode_cfg.get("timeout", _FALLBACK_TIMEOUT)
         return {"provider": "ollama", "model": user_model, "base_url": ollama_base, "timeout": timeout}
 
-    route = cfg.get("routes", {}).get(mode, fallback)
+    routes = cfg.get("routes") or {}
+    route = routes.get(mode) or fallback
     return {
         "provider": "ollama",
         "model": route["model"],

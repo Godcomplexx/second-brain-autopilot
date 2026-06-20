@@ -23,6 +23,15 @@ _MIME = {
 }
 
 
+def _open_browser(url: str) -> bool:
+    """Open *url* and report whether a browser accepted the request."""
+    try:
+        import webbrowser
+        return webbrowser.open(url)
+    except OSError:
+        return False
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: ARG002
         pass
@@ -88,17 +97,19 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── Routing ────────────────────────────────────────────────────────────
 
+    _GET_ROUTES = {
+        "/api/health":  lambda _, s, e: handlers.handle_health(s, e),
+        "/api/config":  lambda _, s, e: handlers.handle_get_config(s, e),
+        "/api/index":   lambda _, s, e: handlers.handle_get_index(s, e),
+        "/api/habits":  lambda _, s, e: handlers.handle_get_habits(s, e),
+    }
+
     def do_GET(self) -> None:
         path = self.path.split("?")[0]
         send, error = self._send_json, self._send_error
-        if path == "/api/health":
-            handlers.handle_health(send, error)
-        elif path == "/api/config":
-            handlers.handle_get_config(send, error)
-        elif path == "/api/index":
-            handlers.handle_get_index(send, error)
-        elif path == "/api/habits":
-            handlers.handle_get_habits(send, error)
+        fn = self._GET_ROUTES.get(path)
+        if fn:
+            fn(self, send, error)
         else:
             self._serve_static(path)
 
@@ -127,14 +138,13 @@ def main() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}"
     print(f"Smart Notes Aggregator → {url}")
-    try:
-        import webbrowser
-        webbrowser.open(url)
-    except Exception:
-        pass
+    _open_browser(url)
     try:
         server.serve_forever()
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as exc:
+        raise SystemExit(0) from exc
+    finally:
+        server.server_close()
         print("\nStopped.")
 
 

@@ -8,6 +8,7 @@ HTTP layer so handlers are unit-testable without a live HTTP server.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +28,7 @@ Send = Callable[[Any, int], None]
 Error = Callable[[str, int], None]
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+_LOGGER = logging.getLogger(__name__)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -42,8 +44,8 @@ def handle_health(send: Send, error: Error) -> None:
     try:
         ollama_models = ollama_client.list_models(base_url=base_url, timeout=timeout)
         ollama_ok = True
-    except Exception:
-        pass
+    except OSError as exc:
+        _LOGGER.debug("Ollama health check failed: %s", exc)
 
     vault_path = obs.get("vault_path", "")
     vault_ok = Path(vault_path).exists() if vault_path else False
@@ -118,14 +120,26 @@ def handle_aggregate(body: dict[str, Any], send: Send, error: Error) -> None:
     base_url = (body.get("baseUrl") or "").rstrip("/") or None
 
     try:
-        result = pipeline.run_aggregate(
-            rel_paths,
-            provider=provider,
-            api_key=api_key,
-            user_model=user_model,
-            base_url=base_url,
-        )
-        send(result, 200)
+        if len(rel_paths) == 1:
+            # Single-note: return one result dict (existing UI contract)
+            result = pipeline.run_aggregate(
+                rel_paths,
+                provider=provider,
+                api_key=api_key,
+                user_model=user_model,
+                base_url=base_url,
+            )
+            send(result, 200)
+        else:
+            # Batch: each note processed independently, return list
+            results = pipeline.run_batch_aggregate(
+                rel_paths,
+                provider=provider,
+                api_key=api_key,
+                user_model=user_model,
+                base_url=base_url,
+            )
+            send({"batch": True, "results": results, "count": len(results)}, 200)
     except Exception as exc:
         error(str(exc), 500)
 

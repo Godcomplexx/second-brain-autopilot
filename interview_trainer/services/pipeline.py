@@ -1,7 +1,8 @@
 """Aggregate → preview → write pipeline.
 
-Encapsulates the full lifecycle of processing a single source note:
-aggregation via LLM, preview generation, and atomic vault write.
+Single-note mode: one source → LLM call → segments/tasks/habits → write.
+Batch mode: each source is processed independently; a failure in one note
+does not affect the others and never marks them as processed.
 """
 from __future__ import annotations
 
@@ -25,7 +26,16 @@ def run_aggregate(
     user_model: str | None = None,
     base_url: str | None = None,
 ) -> dict[str, Any]:
-    """Call LLM aggregator and pre-index tasks. Returns the full result dict."""
+    """Aggregate ONE source note via LLM and pre-index its tasks.
+
+    rel_paths must contain exactly one entry (single-note contract).
+    For multi-note processing use run_batch_aggregate.
+    """
+    if len(rel_paths) != 1:
+        raise ValueError(
+            f"run_aggregate expects exactly 1 rel_path, got {len(rel_paths)}. "
+            "Use run_batch_aggregate for multiple notes."
+        )
     api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
     existing_files = vault_scanner.list_knowledge_files()
     result = aggregator.aggregate(
@@ -37,9 +47,54 @@ def run_aggregate(
         existing_files=existing_files,
     )
     if not result["result"].get("parse_error"):
-        for rel in rel_paths:
-            task_manager.store_tasks_from_aggregation(rel, result["result"])
+        task_manager.store_tasks_from_aggregation(rel_paths[0], result["result"])
     return result
+
+
+def run_batch_aggregate(
+    rel_paths: list[str],
+    provider: str = "ollama",
+    api_key: str = "",
+    user_model: str | None = None,
+    base_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Aggregate multiple notes independently, one LLM call per note.
+
+    Returns a list of per-note result dicts (same shape as run_aggregate).
+    Each note has its own sources, result, and task index entry.
+    A failure for one note is captured in that note's result and does not
+    stop processing of the remaining notes.
+    """
+    api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+    existing_files = vault_scanner.list_knowledge_files()
+    jobs: list[dict[str, Any]] = []
+
+    for rel in rel_paths:
+        try:
+            result = aggregator.aggregate(
+                [rel],
+                provider=provider,
+                api_key=api_key,
+                user_model=user_model,
+                base_url=base_url,
+                existing_files=existing_files,
+            )
+            if not result["result"].get("parse_error"):
+                task_manager.store_tasks_from_aggregation(rel, result["result"])
+        except Exception as exc:
+            result = {
+                "sources": [rel],
+                "result": {
+                    "segments": [],
+                    "tasks": [],
+                    "habits": {},
+                    "parse_error": True,
+                    "error": str(exc),
+                },
+            }
+        jobs.append(result)
+
+    return jobs
 
 
 def run_preview(source_rel: str, segments: list[dict[str, Any]]) -> list[dict[str, Any]]:

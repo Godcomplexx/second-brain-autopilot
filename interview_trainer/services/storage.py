@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import os
 import tempfile
+import logging
 from pathlib import Path
-from typing import Any
 
 from . import config
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class PathTraversalError(ValueError):
@@ -66,11 +68,15 @@ def atomic_write(path: Path, text: str, encoding: str = "utf-8") -> None:
         with os.fdopen(fd, "w", encoding=encoding) as fh:
             fh.write(text)
         Path(tmp_name).replace(path)
-    except Exception:
+    except (OSError, UnicodeEncodeError):
         try:
             os.unlink(tmp_name)
-        except OSError:
-            pass
+        except OSError as cleanup_error:
+            _LOGGER.debug(
+                "Could not remove temporary file %s: %s",
+                tmp_name,
+                cleanup_error,
+            )
         raise
 
 

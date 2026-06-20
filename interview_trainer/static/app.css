@@ -361,6 +361,34 @@ button, input, select, textarea { font: inherit; }
   font-weight: 400;
 }
 
+.selected-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  text-align: center;
+  padding: 2px 0;
+}
+
+.batch-card {
+  border-left: 3px solid var(--accent);
+}
+
+.batch-card-err {
+  border-left-color: var(--danger);
+  opacity: 0.8;
+}
+
+.batch-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 .note-item.selected .note-status {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
