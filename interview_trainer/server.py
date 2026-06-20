@@ -30,7 +30,8 @@ class Handler(BaseHTTPRequestHandler):
     # ── Transport helpers ──────────────────────────────────────────────────
 
     def _send_json(self, data: Any, status: int = 200) -> None:
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        envelope = {"ok": status < 400, "data": data}
+        body = json.dumps(envelope, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -38,10 +39,34 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_error(self, message: str, status: int = 400) -> None:
-        self._send_json({"error": message}, status)
+        code_map = {
+            400: "BAD_REQUEST",
+            404: "NOT_FOUND",
+            409: "CONFLICT",
+            500: "INTERNAL_ERROR",
+            502: "LLM_UNAVAILABLE",
+            504: "LLM_TIMEOUT",
+        }
+        envelope = {
+            "ok": False,
+            "error": {
+                "code": code_map.get(status, "ERROR"),
+                "message": message,
+            },
+        }
+        body = json.dumps(envelope, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    _MAX_BODY = 4 * 1024 * 1024  # 4 MB
 
     def _read_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length", 0))
+        if length > self._MAX_BODY:
+            raise ValueError(f"Request body too large: {length} bytes (max {self._MAX_BODY})")
         raw = self.rfile.read(length) if length else b"{}"
         return json.loads(raw.decode("utf-8"))
 

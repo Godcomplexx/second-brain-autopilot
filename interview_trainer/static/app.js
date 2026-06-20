@@ -56,9 +56,13 @@ async function api(method, path, body) {
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(path, opts);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
+  const envelope = await res.json();
+  if (!res.ok || envelope.ok === false) {
+    const msg = envelope.error?.message || envelope.error || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  // Return the inner data payload; fall back to whole envelope for legacy compat
+  return envelope.data !== undefined ? envelope.data : envelope;
 }
 
 function showLoading(text = "Working…") {
