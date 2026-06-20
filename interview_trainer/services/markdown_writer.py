@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +70,7 @@ def write_aggregation(
         }
 
     target_path = _resolve_target_path(obs, target_folder_key, target_filename, mkdir=True)
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     block = _build_block(content, source_rel, date_str, connections)
 
     if target_path.exists():
@@ -105,7 +105,7 @@ def preview_write(
 ) -> dict[str, Any]:
     obs = config.get_obsidian()
     target_path = _resolve_target_path(obs, target_folder_key, target_filename, mkdir=False)
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     block = _build_block(content, source_rel, date_str, connections)
     target_rel = str(target_path.relative_to(Path(obs["vault_path"]))).replace("\\", "/")
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +60,7 @@ def write_tasks_to_vault(tasks: list[dict[str, Any]], source_rel: str) -> dict[s
     tasks_file = vault / obs.get("tasks_file", "06 Tracking/Task Inbox.md")
     tasks_file.parent.mkdir(parents=True, exist_ok=True)
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     source_stem = Path(source_rel).stem
 
     lines: list[str] = []

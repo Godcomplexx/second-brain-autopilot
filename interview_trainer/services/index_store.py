@@ -28,11 +28,11 @@ def get_processed() -> dict[str, Any]:
 
 
 def mark_processed(rel_path: str, content_hash: str, targets: list[str]) -> None:
-    from datetime import datetime
+    from datetime import datetime, timezone
     data = get_processed()
     data[rel_path] = {
         "hash": content_hash,
-        "processed_at": datetime.utcnow().isoformat() + "Z",
+        "processed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "targets": targets,
     }
     _write(_PROCESSED_FILE, data)
