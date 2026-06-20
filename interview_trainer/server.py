@@ -261,9 +261,31 @@ class Handler(BaseHTTPRequestHandler):
         tasks = body.get("tasks", [])
         habits = body.get("habits", {})
         scan_hash = body.get("scan_hash", "")
-        if not source_rel or not segments:
-            self._send_error("source_rel and segments are required")
+
+        # ── Input validation (fail before any writes) ─────────────────────
+        if not source_rel:
+            self._send_error("source_rel is required")
             return
+        if not segments:
+            self._send_error("segments is required and must be non-empty")
+            return
+        valid_folder_keys = {
+            "knowledge_folder", "areas_folder", "projects_folder",
+            "tracking_folder", "archive_folder",
+        }
+        for i, seg in enumerate(segments):
+            folder_key = seg.get("folder_key", "")
+            filename = (seg.get("filename") or "").strip()
+            if folder_key not in valid_folder_keys:
+                self._send_error(f"segment[{i}]: unknown folder_key '{folder_key}'")
+                return
+            if not filename or not filename.endswith(".md"):
+                self._send_error(f"segment[{i}]: filename must be a non-empty .md name, got '{filename}'")
+                return
+        if not scan_hash:
+            self._send_error("scan_hash is required")
+            return
+
         try:
             results = []
             for seg in segments:
@@ -275,10 +297,16 @@ class Handler(BaseHTTPRequestHandler):
                     seg.get("connections") or [],
                     scan_hash=scan_hash,
                 )
-                results.append(r)
                 if not r["success"]:
                     self._send_error(r["error"], 409)
                     return
+                results.append(r)
+
+            # Update index once, with all targets, deduplicated
+            all_targets = list(dict.fromkeys(r["target_path"] for r in results))
+            source_hash = results[0]["source_hash"]
+            index_store.mark_processed(source_rel, source_hash, all_targets)
+
             tasks_result = {}
             if tasks:
                 tasks_result = task_manager.write_tasks_to_vault(tasks, source_rel)

@@ -75,14 +75,17 @@ class TestWriteAggregation:
             scan_hash=scan_hash,
         )
 
-        # Hash stored in index now; re-read from disk
-        source_hash2 = hashlib.sha256(source.read_bytes()).hexdigest()
+        # mark_processed is now the caller's responsibility; do it manually
+        from services import index_store
+        index_store.mark_processed("02 Daily/2025-06-01.md", scan_hash, ["05 Knowledge/Out.md"])
+
+        scan_hash2 = hashlib.sha256(source.read_bytes()).hexdigest()
         markdown_writer.write_aggregation(
             source_rel="02 Daily/2025-06-01.md",
             target_folder_key="knowledge_folder",
             target_filename="Out.md",
             content="second version",
-            scan_hash=source_hash2,
+            scan_hash=scan_hash2,
         )
 
         text = (tmp_vault / "05 Knowledge" / "Out.md").read_text(encoding="utf-8")
@@ -115,6 +118,21 @@ class TestWriteAggregation:
             scan_hash="abc",
         )
         assert result["success"] is False
+
+    def test_returns_source_hash_on_success(self, tmp_vault: Path, vault_config, data_dir):
+        source = tmp_vault / "02 Daily" / "2025-06-01.md"
+        source.write_text("content", encoding="utf-8")
+        scan_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+
+        result = markdown_writer.write_aggregation(
+            source_rel="02 Daily/2025-06-01.md",
+            target_folder_key="knowledge_folder",
+            target_filename="Out.md",
+            content="body",
+            scan_hash=scan_hash,
+        )
+        assert result["success"] is True
+        assert result["source_hash"] == scan_hash
 
 
 class TestPreviewWrite:

@@ -86,13 +86,14 @@ def write_aggregation(
     target_path.write_text(updated, encoding="utf-8")
     target_rel = str(target_path.relative_to(Path(obs["vault_path"]))).replace("\\", "/")
 
-    index_store.mark_processed(source_rel, current_hash, [target_rel])
-
+    # Caller (server handler) is responsible for updating the index once all
+    # segments for this source have been written successfully.
     return {
         "success": True,
         "target_path": target_rel,
         "source": source_rel,
         "date": date_str,
+        "source_hash": current_hash,
     }
 
 
