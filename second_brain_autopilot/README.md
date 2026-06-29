@@ -13,7 +13,7 @@ JSON state files · Ollama LLM (OpenAI-compatible API also supported via config)
 ## Quick start
 
 ```
-cd interview_trainer
+cd second_brain_autopilot
 python server.py
 ```
 
@@ -34,6 +34,21 @@ Opens `http://127.0.0.1:8765` automatically.
 | `config/app_config.json` | Limits, scan extensions, habit keys |
 
 Copy `config/obsidian.example.json` → `config/obsidian.json` and set `vault_path`.
+
+## AI System Builder
+
+The **Create System** screen follows this controlled flow:
+
+```
+goal prompt -> LLM JSON -> schema validation -> user review -> SQLite transaction
+```
+
+Generated configs are limited to five entities, ten fields per entity, eight
+habits, and eight metrics. Dynamic records are type-checked by Python before
+storage, and Obsidian exports require preview and explicit approval.
+
+Copy `config/models.example.json` to `config/models.json` to configure the
+`aggregator` and `system_builder` Ollama routes.
 
 ## Workflow
 
@@ -124,6 +139,12 @@ Error codes: `BAD_REQUEST` · `NOT_FOUND` · `CONFLICT` · `INTERNAL_ERROR` ·
 | POST | `/api/habits/toggle` | Toggle habit field in today's daily note |
 | GET | `/api/habits` | Read all daily habit records |
 | GET | `/api/index` | Read processed notes index + task list |
+| POST | `/api/systems/generate` | Generate an unsaved system config |
+| GET/POST | `/api/systems` | List/create systems |
+| GET/DELETE | `/api/systems/{id}` | Read/delete one system |
+| GET/POST | `/api/entities/{id}/records` | List/create dynamic records |
+| PATCH/DELETE | `/api/records/{id}` | Update/delete a record |
+| POST | `/api/systems/{id}/export` | Preview/write an Obsidian export |
 
 ## Data files
 

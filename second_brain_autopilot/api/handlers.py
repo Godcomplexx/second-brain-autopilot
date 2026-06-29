@@ -19,7 +19,11 @@ from services import (
     index_store,
     ollama_client,
     pipeline,
+    record_store,
     storage,
+    system_exporter,
+    system_generator,
+    system_store,
     vault_scanner,
     validation,
 )
@@ -252,3 +256,142 @@ def handle_get_index(send: Send, error: Error) -> None:
         "processed": index_store.get_processed(),
         "tasks": index_store.get_tasks(),
     }, 200)
+
+
+# ── AI system builder ───────────────────────────────────────────────────────
+
+def handle_generate_system(body: dict[str, Any], send: Send, error: Error) -> None:
+    try:
+        generated = system_generator.generate(
+            body,
+            provider=body.get("provider", "ollama"),
+            api_key=body.get("apiKey", "") or os.environ.get("OPENAI_API_KEY", ""),
+            user_model=body.get("model") or None,
+            base_url=(body.get("baseUrl") or "").rstrip("/") or None,
+        )
+        send({"config": generated}, 200)
+    except ValueError as exc:
+        error(str(exc), 400)
+    except Exception as exc:
+        error(str(exc), 502)
+
+
+def handle_create_system(body: dict[str, Any], send: Send, error: Error) -> None:
+    raw_config = body.get("config")
+    if not isinstance(raw_config, dict):
+        error("'config' must be an object", 400)
+        return
+    source_prompt = body.get("source_prompt", "")
+    if not isinstance(source_prompt, str):
+        error("'source_prompt' must be a string", 400)
+        return
+    try:
+        created = system_store.create(raw_config, source_prompt)
+        send({"system": created}, 201)
+    except ValueError as exc:
+        error(str(exc), 400)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_list_systems(send: Send, error: Error) -> None:
+    try:
+        send({"systems": system_store.list_all()}, 200)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_get_system(system_id: int, send: Send, error: Error) -> None:
+    try:
+        system = system_store.get(system_id)
+        if system is None:
+            error("system not found", 404)
+            return
+        send({"system": system}, 200)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_delete_system(system_id: int, send: Send, error: Error) -> None:
+    try:
+        if not system_store.delete(system_id):
+            error("system not found", 404)
+            return
+        send({"deleted": True}, 200)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_create_record(
+    entity_id: int, body: dict[str, Any], send: Send, error: Error
+) -> None:
+    values = body.get("values")
+    if not isinstance(values, dict):
+        error("'values' must be an object", 400)
+        return
+    try:
+        send({"record": record_store.create(entity_id, values)}, 201)
+    except LookupError as exc:
+        error(str(exc), 404)
+    except ValueError as exc:
+        error(str(exc), 400)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_list_records(entity_id: int, send: Send, error: Error) -> None:
+    try:
+        send({"records": record_store.list_for_entity(entity_id)}, 200)
+    except LookupError as exc:
+        error(str(exc), 404)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_update_record(
+    record_id: int, body: dict[str, Any], send: Send, error: Error
+) -> None:
+    values = body.get("values")
+    if not isinstance(values, dict):
+        error("'values' must be an object", 400)
+        return
+    try:
+        record = record_store.update(record_id, values)
+        if record is None:
+            error("record not found", 404)
+            return
+        send({"record": record}, 200)
+    except ValueError as exc:
+        error(str(exc), 400)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_delete_record(record_id: int, send: Send, error: Error) -> None:
+    try:
+        if not record_store.delete(record_id):
+            error("record not found", 404)
+            return
+        send({"deleted": True}, 200)
+    except Exception as exc:
+        error(str(exc), 500)
+
+
+def handle_export_system(
+    system_id: int, body: dict[str, Any], send: Send, error: Error
+) -> None:
+    try:
+        if body.get("preview", False):
+            send({"preview": system_exporter.render(system_id)}, 200)
+            return
+        output_path = body.get("output_path")
+        if output_path is not None and not isinstance(output_path, str):
+            error("'output_path' must be a string", 400)
+            return
+        send({"export": system_exporter.export(system_id, output_path)}, 200)
+    except LookupError as exc:
+        error(str(exc), 404)
+    except ValueError as exc:
+        error(str(exc), 400)
+    except Exception as exc:
+        error(str(exc), 500)

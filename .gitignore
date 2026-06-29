@@ -8,9 +8,12 @@ __pycache__/
 *.log
 
 # Personal config — contains vault path with username
-interview_trainer/config/obsidian.json
-interview_trainer/config/models.json
+second_brain_autopilot/config/obsidian.json
+second_brain_autopilot/config/models.json
 
 # Personal data — contains note names and processing history
-interview_trainer/data/processed_notes.json
-interview_trainer/data/task_index.json
+second_brain_autopilot/data/processed_notes.json
+second_brain_autopilot/data/task_index.json
+second_brain_autopilot/data/systems.db
+second_brain_autopilot/data/systems.db-shm
+second_brain_autopilot/data/systems.db-wal

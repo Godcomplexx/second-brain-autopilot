@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Second Brain Autopilot</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Left sidebar ────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1 class="app-title">Second Brain Autopilot</h1>
+      <div class="status-row" id="status-row">
+        <span class="dot" id="dot-ollama" title="Ollama"></span>
+        <span class="dot" id="dot-vault" title="Vault"></span>
+        <span class="status-text" id="status-text">Checking…</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-section app-nav" aria-label="Main navigation">
+      <button class="btn btn-ghost full-width nav-button" data-panel="dashboard">Dashboard</button>
+      <button class="btn btn-ghost full-width nav-button" data-panel="create-system">Create System</button>
+      <button class="btn btn-ghost full-width nav-button" data-panel="tables">Tables</button>
+      <button class="btn btn-ghost full-width nav-button" data-panel="empty">Notes</button>
+    </nav>
+
+    <div class="sidebar-section">
+      <button class="btn btn-primary full-width" id="btn-scan">Scan Daily Notes</button>
+    </div>
+
+    <div class="sidebar-section" id="note-list-section" hidden>
+      <div class="section-label">
+        Daily notes
+        <span class="badge" id="note-count">0</span>
+      </div>
+      <input class="note-search" id="note-search" type="search" placeholder="Filter notes…" />
+      <div class="note-list" id="note-list"></div>
+      <div class="note-processed-info" id="note-processed-info" hidden></div>
+      <div class="selected-count" id="selected-count" hidden></div>
+      <button class="btn btn-secondary full-width" id="btn-aggregate" disabled>
+        Restructure Note
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost full-width" id="btn-index">View Index</button>
+    </div>
+  </aside>
+
+  <!-- ── Workspace ────────────────────────────────────────────── -->
+  <main class="workspace">
+
+    <div class="empty-state" id="empty-state">
+      <p>Scan daily notes to get started.</p>
+    </div>
+
+    <div class="result-panel" id="result-panel" hidden>
+      <div class="result-header">
+        <h2 class="result-title">Restructured Notes</h2>
+        <div class="result-meta" id="result-meta"></div>
+      </div>
+      <div id="segments-area"></div>
+      <div class="write-bar card">
+        <div class="write-actions" id="write-actions">
+          <button class="btn btn-secondary" id="btn-preview" disabled>Preview Write Plan</button>
+          <button class="btn btn-primary" id="btn-write" disabled>Approve &amp; Write All</button>
+        </div>
+        <div class="write-preview" id="write-preview" hidden></div>
+        <div class="write-done" id="write-done" hidden>
+          <span class="write-done-icon">✓</span>
+          <div class="write-done-body">
+            <div class="write-done-title">Written to vault</div>
+            <div class="write-done-paths" id="write-done-paths"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="index-panel" id="index-panel" hidden>
+      <h2>Processed Notes Index</h2>
+      <div id="index-content"></div>
+    </div>
+
+    <section class="builder-panel" id="dashboard-panel" hidden>
+      <div class="page-heading">
+        <div>
+          <h2>Tracking Systems</h2>
+          <p>AI-generated systems stored locally on this device.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-new-system">Create System</button>
+      </div>
+      <div class="system-grid" id="system-list"></div>
+    </section>
+
+    <section class="builder-panel" id="system-create-panel" hidden>
+      <div class="page-heading">
+        <div>
+          <h2>Create System</h2>
+          <p>Describe the outcome. The AI will propose a small tracking system for review.</p>
+        </div>
+      </div>
+      <form class="builder-form card" id="system-form">
+        <label class="field wide">
+          <span>Main goal *</span>
+          <textarea name="main_goal" rows="3" required placeholder="Prepare for IELTS and relocate within three months"></textarea>
+        </label>
+        <label class="field">
+          <span>Time horizon</span>
+          <input name="time_horizon" placeholder="3 months" />
+        </label>
+        <label class="field">
+          <span>What to track</span>
+          <input name="track_items" placeholder="English, applications, money, rest" />
+        </label>
+        <label class="field wide">
+          <span>Current situation</span>
+          <textarea name="current_situation" rows="2"></textarea>
+        </label>
+        <label class="field">
+          <span>Constraints</span>
+          <textarea name="constraints" rows="2" placeholder="Limited budget and evening energy"></textarea>
+        </label>
+        <label class="field">
+          <span>Style</span>
+          <textarea name="style" rows="2" placeholder="Strict, maximum five daily actions"></textarea>
+        </label>
+        <div class="form-actions wide">
+          <button class="btn btn-primary" type="submit">Generate System</button>
+        </div>
+      </form>
+      <section class="config-preview card" id="config-preview" hidden>
+        <div class="preview-heading">
+          <div>
+            <h3>Review generated config</h3>
+            <p>Edit the JSON if needed. It is validated again before saving.</p>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" id="btn-regenerate" type="button">Regenerate</button>
+            <button class="btn btn-primary" id="btn-approve-system" type="button">Approve</button>
+          </div>
+        </div>
+        <textarea class="json-editor" id="system-config-json" rows="22" spellcheck="false"></textarea>
+      </section>
+    </section>
+
+    <section class="builder-panel" id="tables-panel" hidden>
+      <div class="page-heading">
+        <div>
+          <h2>Dynamic Tables</h2>
+          <p>Forms and columns are generated from the approved system config.</p>
+        </div>
+        <div class="table-toolbar">
+          <select id="table-system-select" aria-label="System"></select>
+          <button class="btn btn-secondary" id="btn-export-system" type="button">Export to Obsidian</button>
+        </div>
+      </div>
+      <div class="entity-tabs" id="entity-tabs"></div>
+      <form class="record-form card" id="record-form"></form>
+      <div class="dynamic-table-wrap card">
+        <table class="dynamic-table" id="dynamic-table"></table>
+      </div>
+      <section class="export-preview card" id="export-preview" hidden>
+        <div class="preview-heading">
+          <h3>Obsidian export preview</h3>
+          <button class="btn btn-primary" id="btn-confirm-export" type="button">Approve &amp; Write</button>
+        </div>
+        <pre id="export-preview-content"></pre>
+      </section>
+    </section>
+
+    <div class="toast" id="toast" hidden></div>
+    <div class="loading-overlay" id="loading" hidden>
+      <div class="spinner"></div>
+      <span id="loading-text">Working…</span>
+    </div>
+
+  </main>
+
+  <!-- ── Right tracker sidebar ────────────────────────────────── -->
+  <aside class="tracker-sidebar">
+
+    <!-- Habits -->
+    <div class="ts-block">
+      <div class="ts-header">
+        <span class="ts-title">Habits</span>
+        <span class="ts-date" id="ts-date"></span>
+      </div>
+      <div id="ts-habits">
+        <div class="ts-loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="ts-block ts-block-tasks">
+      <div class="ts-header">
+        <span class="ts-title">Tasks</span>
+        <span class="ts-badge" id="ts-task-count"></span>
+      </div>
+      <div id="ts-tasks">
+        <div class="ts-loading">Loading…</div>
+      </div>
+    </div>
+
+  </aside>
+
+</div>
+
+<script src="/app.js"></script>
+<script src="/app-results.js"></script>
+<script src="/app-tracker.js"></script>
+<script src="/app-navigation.js"></script>
+<script src="/app-systems.js"></script>
+<script src="/app-tables.js"></script>
+<script src="/app-bootstrap.js"></script>
+</body>
+</html>

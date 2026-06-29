@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-_TRAINER = Path(__file__).resolve().parent.parent / "interview_trainer"
+_TRAINER = Path(__file__).resolve().parent.parent / "second_brain_autopilot"
 if str(_TRAINER) not in sys.path:
     sys.path.insert(0, str(_TRAINER))
 

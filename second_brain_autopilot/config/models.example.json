@@ -1,0 +1,22 @@
+{
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "fallback": {
+    "model": "gemma4:e4b",
+    "timeout": 120
+  },
+  "routes": {
+    "aggregator": {
+      "model": "gemma4:e4b",
+      "timeout": 120
+    },
+    "system_builder": {
+      "model": "gemma4:e4b",
+      "timeout": 120
+    }
+  },
+  "cloud_override": {
+    "enabled": false,
+    "provider": "openai",
+    "model": "gpt-4.1-mini"
+  }
+}

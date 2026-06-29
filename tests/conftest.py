@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-# Make interview_trainer importable without installing as a package
-_TRAINER = Path(__file__).resolve().parent.parent / "interview_trainer"
+# Make second_brain_autopilot importable without installing as a package
+_TRAINER = Path(__file__).resolve().parent.parent / "second_brain_autopilot"
 if str(_TRAINER) not in sys.path:
     sys.path.insert(0, str(_TRAINER))
 
@@ -65,3 +65,12 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(index_store, "_PROCESSED_FILE", d / "processed_notes.json")
     monkeypatch.setattr(index_store, "_TASK_INDEX_FILE", d / "task_index.json")
     return d
+
+
+@pytest.fixture()
+def systems_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect the AI system builder SQLite database to a temporary file."""
+    from services import database
+    path = tmp_path / "systems.db"
+    monkeypatch.setattr(database, "_DB_PATH", path)
+    return path

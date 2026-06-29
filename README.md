@@ -11,6 +11,21 @@ Local autopilot for your Obsidian second brain. Scans daily notes, uses a local 
 - **Grammar correction** — AI fixes spelling and grammar while preserving all content
 - **Duplicate prevention** — re-processing a note rewrites the existing block, never duplicates
 
+## AI System Builder
+
+The **Create System** screen turns a goal prompt into a validated configuration
+for dynamic tables, habits, and weekly metrics. The user reviews the JSON before
+it is saved in SQLite. The LLM never generates SQL or writes directly to the
+database.
+
+Workflow:
+
+1. Describe the goal, constraints, horizon, and tracking needs.
+2. Generate and review the system config.
+3. Approve the config to save the whole system in one transaction.
+4. Add type-checked records through generated forms.
+5. Preview and approve the Markdown export to Obsidian.
+
 ## Stack
 
 Plain Python + stdlib HTTP server · Vanilla JS/CSS frontend · Ollama local LLM · JSON state files
@@ -26,7 +41,8 @@ No npm, no pip dependencies, no cloud.
 
 2. Copy config templates and fill in your vault path:
    ```
-   copy interview_trainer\config\obsidian.example.json interview_trainer\config\obsidian.json
+   copy second_brain_autopilot\config\obsidian.example.json second_brain_autopilot\config\obsidian.json
+   copy second_brain_autopilot\config\models.example.json second_brain_autopilot\config\models.json
    ```
    Edit `obsidian.json` → set `vault_path` to your Obsidian vault folder.
 
@@ -95,3 +111,9 @@ The AI auto-detects which habits were done from the note content and updates the
 | POST | `/api/write` | Write to vault |
 | GET | `/api/index` | Processed notes + task index |
 | POST | `/api/tasks/toggle` | Mark task done/undone |
+| POST | `/api/systems/generate` | Generate and validate an unsaved system config |
+| GET/POST | `/api/systems` | List or create systems |
+| GET/DELETE | `/api/systems/{id}` | Read or delete a system |
+| GET/POST | `/api/entities/{id}/records` | List or create dynamic records |
+| PATCH/DELETE | `/api/records/{id}` | Update or delete a record |
+| POST | `/api/systems/{id}/export` | Preview or write an Obsidian export |

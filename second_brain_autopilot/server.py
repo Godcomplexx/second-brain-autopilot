@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -102,6 +103,7 @@ class Handler(BaseHTTPRequestHandler):
         "/api/config":  lambda _, s, e: handlers.handle_get_config(s, e),
         "/api/index":   lambda _, s, e: handlers.handle_get_index(s, e),
         "/api/habits":  lambda _, s, e: handlers.handle_get_habits(s, e),
+        "/api/systems": lambda _, s, e: handlers.handle_list_systems(s, e),
     }
 
     def do_GET(self) -> None:
@@ -110,6 +112,10 @@ class Handler(BaseHTTPRequestHandler):
         fn = self._GET_ROUTES.get(path)
         if fn:
             fn(self, send, error)
+        elif match := re.fullmatch(r"/api/systems/(\d+)", path):
+            handlers.handle_get_system(int(match.group(1)), send, error)
+        elif match := re.fullmatch(r"/api/entities/(\d+)/records", path):
+            handlers.handle_list_records(int(match.group(1)), send, error)
         else:
             self._serve_static(path)
 
@@ -125,10 +131,36 @@ class Handler(BaseHTTPRequestHandler):
             "/api/write":        lambda: handlers.handle_write(body, send, error),
             "/api/tasks/toggle": lambda: handlers.handle_toggle_task(body, send, error),
             "/api/habits/toggle":lambda: handlers.handle_habit_toggle(body, send, error),
+            "/api/systems/generate": lambda: handlers.handle_generate_system(body, send, error),
+            "/api/systems": lambda: handlers.handle_create_system(body, send, error),
         }
         fn = routes.get(path)
         if fn:
             fn()
+        elif match := re.fullmatch(r"/api/entities/(\d+)/records", path):
+            handlers.handle_create_record(int(match.group(1)), body, send, error)
+        elif match := re.fullmatch(r"/api/systems/(\d+)/export", path):
+            handlers.handle_export_system(int(match.group(1)), body, send, error)
+        else:
+            error("Not found", 404)
+
+    def do_PATCH(self) -> None:
+        path = self.path.split("?")[0]
+        send, error = self._send_json, self._send_error
+        body = self._read_body()
+        match = re.fullmatch(r"/api/records/(\d+)", path)
+        if match:
+            handlers.handle_update_record(int(match.group(1)), body, send, error)
+        else:
+            error("Not found", 404)
+
+    def do_DELETE(self) -> None:
+        path = self.path.split("?")[0]
+        send, error = self._send_json, self._send_error
+        if match := re.fullmatch(r"/api/systems/(\d+)", path):
+            handlers.handle_delete_system(int(match.group(1)), send, error)
+        elif match := re.fullmatch(r"/api/records/(\d+)", path):
+            handlers.handle_delete_record(int(match.group(1)), send, error)
         else:
             error("Not found", 404)
 

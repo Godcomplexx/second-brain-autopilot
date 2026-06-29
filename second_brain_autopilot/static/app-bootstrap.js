@@ -13,6 +13,7 @@ noteSearch?.addEventListener("input", renderNoteList);
 
 checkHealth();
 setInterval(checkHealth, 30_000);
-setPanel("empty");
+setPanel("dashboard");
+loadSystems();
 loadTrackerSidebar();
 setInterval(loadTrackerSidebar, 60_000);

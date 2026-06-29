@@ -28,6 +28,9 @@ const btnAggregate  = $("btn-aggregate");
 const emptyState   = $("empty-state");
 const resultPanel  = $("result-panel");
 const indexPanel   = $("index-panel");
+const dashboardPanel = $("dashboard-panel");
+const systemCreatePanel = $("system-create-panel");
+const tablesPanel = $("tables-panel");
 const loading      = $("loading");
 const loadingText  = $("loading-text");
 const toast        = $("toast");
@@ -84,6 +87,12 @@ function setPanel(name) {
   emptyState.hidden  = name !== "empty";
   resultPanel.hidden = name !== "result";
   indexPanel.hidden  = name !== "index";
+  dashboardPanel.hidden = name !== "dashboard";
+  systemCreatePanel.hidden = name !== "create-system";
+  tablesPanel.hidden = name !== "tables";
+  document.querySelectorAll(".nav-button").forEach(button => {
+    button.classList.toggle("nav-active", button.dataset.panel === name);
+  });
 }
 
 function escHtml(s) {
